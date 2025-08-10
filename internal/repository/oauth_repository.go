@@ -37,6 +37,9 @@ func NewOAuthRepository() (domain.OAuthService, error) {
 		return nil, fmt.Errorf("unable to parse credentials.json: %v", err)
 	}
 
+	// Set the redirect URI to our local server
+	config.RedirectURL = "http://localhost:8080/oauth2callback"
+
 	return &OAuthRepository{
 		config: config,
 	}, nil
@@ -79,4 +82,9 @@ func (r *OAuthRepository) ExchangeCode(code string) (*oauth2.Token, error) {
 // GetAuthURL returns the authorization URL for the OAuth2 flow
 func (r *OAuthRepository) GetAuthURL() string {
 	return r.config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+}
+
+// GetAuthURLWithState returns the authorization URL with a custom state parameter
+func (r *OAuthRepository) GetAuthURLWithState(state string) string {
+	return r.config.AuthCodeURL(state, oauth2.AccessTypeOffline)
 }

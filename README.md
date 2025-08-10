@@ -83,6 +83,57 @@ google-photos-magic/
 go run cmd/app/main.go
 ```
 
+## 🔐 OAuth Authentication Flow
+
+The application now features an **automatic OAuth2 flow** that eliminates the need for manual authorization code input:
+
+### ✨ **New Automatic Flow**
+1. **Start the application** - It will automatically detect if OAuth is needed
+2. **Local server starts** - A server runs on `http://localhost:8080` to capture the callback
+3. **Browser opens** - You'll see the Google authorization URL in the console
+4. **Authorize access** - Complete the authorization in your browser
+5. **Automatic completion** - The authorization code is automatically captured and exchanged for tokens
+6. **Success message** - You'll see "Authorization Successful!" in your browser
+
+### 🔄 **How It Works**
+- **Local Server**: Runs on port 8080 to handle OAuth callbacks
+- **State Verification**: Includes security with state parameter validation
+- **Automatic Code Capture**: No more manual copy-pasting of authorization codes
+- **Graceful Shutdown**: Server automatically shuts down after successful authentication
+- **Timeout Protection**: 5-minute timeout prevents hanging
+
+### 📝 **Prerequisites**
+- `credentials.json` file in the project root (from Google Cloud Console)
+- Port 8080 available on your machine
+- Browser access for OAuth authorization
+
+### 🚨 **Security Features**
+- **State Parameter**: Prevents CSRF attacks
+- **Local Callback**: Only accepts callbacks from localhost
+- **Automatic Cleanup**: Server shuts down after use
+- **Error Handling**: Comprehensive error handling for OAuth failures
+
+### 📱 **User Experience**
+```
+Starting automatic OAuth2 flow...
+Starting local server on http://localhost:8080
+Visit this URL in your browser to authorize:
+https://accounts.google.com/oauth/authorize?...
+
+[User completes authorization in browser]
+
+OAuth flow completed successfully!
+```
+
+### 🔙 **Legacy Manual Flow (Deprecated)**
+The old manual flow required users to:
+1. Copy the authorization URL from console
+2. Paste it in browser
+3. Manually copy the authorization code from the callback URL
+4. Paste the code back into the terminal
+
+This has been **completely automated** with the new server-based approach.
+
 ## 🧪 Testing
 
 The clean architecture makes testing much easier:

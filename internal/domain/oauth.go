@@ -11,4 +11,5 @@ type OAuthService interface {
 	SaveToken(tok *oauth2.Token) error
 	ExchangeCode(code string) (*oauth2.Token, error)
 	GetAuthURL() string
+	GetAuthURLWithState(state string) string
 }

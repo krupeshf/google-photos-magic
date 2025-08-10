@@ -1,7 +1,11 @@
 package usecase
 
 import (
+	"context"
+	"fmt"
 	"log"
+	"net/http"
+	"time"
 
 	"golang.org/x/oauth2"
 	"krupesh.faldu/internal/domain"
@@ -64,6 +68,106 @@ func (uc *OAuthUseCase) CompleteAuthentication(code string) error {
 
 	log.Printf("Authentication completed successfully")
 	return nil
+}
+
+// CompleteAuthenticationWithServer automatically completes OAuth2 flow using a local server
+func (uc *OAuthUseCase) CompleteAuthenticationWithServer() error {
+	log.Printf("Starting OAuth2 flow with local server...")
+
+	// Generate a random state for security
+	state := "random-state-" + fmt.Sprintf("%d", time.Now().Unix())
+
+	// Get the authorization URL with the state
+	authURL := uc.oauthService.GetAuthURLWithState(state)
+
+	// Create a channel to receive the authorization code
+	codeChan := make(chan string, 1)
+	errChan := make(chan error, 1)
+
+	// Start local server to capture the callback
+	server := &http.Server{
+		Addr: ":8080",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Handle OAuth callback
+			if r.URL.Path == "/oauth2callback" {
+				query := r.URL.Query()
+
+				// Check if there's an error
+				if err := query.Get("error"); err != "" {
+					errChan <- fmt.Errorf("OAuth error: %s", err)
+					return
+				}
+
+				// Verify state parameter
+				if receivedState := query.Get("state"); receivedState != state {
+					errChan <- fmt.Errorf("invalid state parameter")
+					return
+				}
+
+				// Get the authorization code
+				code := query.Get("code")
+				if code == "" {
+					errChan <- fmt.Errorf("no authorization code received")
+					return
+				}
+
+				// Send success response to browser
+				w.Header().Set("Content-Type", "text/html")
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`
+					<html>
+						<body>
+							<h1>Authorization Successful!</h1>
+							<p>You can close this window now.</p>
+							<script>window.close();</script>
+						</body>
+					</html>
+				`))
+
+				// Send the code through the channel
+				codeChan <- code
+			} else {
+				http.NotFound(w, r)
+			}
+		}),
+	}
+
+	// Start the server in a goroutine
+	go func() {
+		log.Printf("Starting local server on http://localhost:8080")
+		log.Printf("Visit this URL in your browser to authorize:")
+		log.Printf("%s", authURL)
+
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errChan <- fmt.Errorf("server error: %v", err)
+		}
+	}()
+
+	// Wait for the authorization code or an error
+	select {
+	case code := <-codeChan:
+		// Shutdown the server gracefully
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		server.Shutdown(ctx)
+
+		// Complete the authentication
+		return uc.CompleteAuthentication(code)
+
+	case err := <-errChan:
+		// Shutdown the server gracefully
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		server.Shutdown(ctx)
+		return err
+
+	case <-time.After(10 * time.Minute):
+		// Timeout after 10 minutes
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		server.Shutdown(ctx)
+		return fmt.Errorf("OAuth flow timed out")
+	}
 }
 
 // GetAuthURL returns the authorization URL for the OAuth2 flow
